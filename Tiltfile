@@ -1,10 +1,14 @@
-# if cluster not reachable, create one (idempotent)
-if local('kubectl cluster-info > /dev/null 2>&1', quiet=True).exit_code != 0:
-  local('kind create cluster --name beaulink-dev')
+# Load the extension to glob K8s YAML configs
+load('ext://k8s_yaml_glob', 'k8s_yaml_glob')
 
-# ensure Envoy Gateway is installed (idempotent helm upgrade)
-local('helm repo add envoy-gateway https://charts.envoyproxy.io')
-local('helm upgrade --install envoy-gateway envoy-gateway/envoy-gateway -n gateway-system --create-namespace')
+local('bash -c "kubectl cluster-info >/dev/null 2>&1 || kind create cluster --name beaulink-dev"')
 
-# load all gateway YAMLs
-k8s_yaml('../edge-gateway/configs')
+# 2) Install Envoy Gateway via Helm
+local(
+    """helm upgrade --install envoy-gateway oci://docker.io/envoyproxy/gateway-helm \
+--version v1.4.1 -n gateway-system --create-namespace""",
+    quiet=True
+)
+
+# 3) Load all YAML config files
+k8s_yaml_glob('../edge-gateway/configs/*.y*ml')
